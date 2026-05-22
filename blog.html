@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>blog.html &#x2620; Davi Kechner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="tickerbar">
+  <span class="run" data-lang="pt"><span class="marquee">&#x2620; bem-vindo ao meu cantinho da internet &#x2727; seguranca - desenvolvimento - infraestrutura &#x2727; v de vitoria &#x2620; obrigado por visitar &#x2727; nao se esqueca de assinar meu guestbook &#x2620;&nbsp;&nbsp;&nbsp;&#x2620; bem-vindo ao meu cantinho da internet &#x2727; seguranca - desenvolvimento - infraestrutura &#x2727; v de vitoria &#x2620; obrigado por visitar &#x2727; nao se esqueca de assinar meu guestbook &#x2620;&nbsp;&nbsp;&nbsp;</span></span>
+  <span class="run" data-lang="en"><span class="marquee">&#x2620; welcome to my corner of the web &#x2727; security - development - infrastructure &#x2727; v for victory &#x2620; thanks for visiting &#x2727; don't forget to sign my guestbook &#x2620;&nbsp;&nbsp;&nbsp;&#x2620; welcome to my corner of the web &#x2727; security - development - infrastructure &#x2727; v for victory &#x2620; thanks for visiting &#x2727; don't forget to sign my guestbook &#x2620;&nbsp;&nbsp;&nbsp;</span></span>
+</div>
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="brand" style="text-decoration:none">davi.kechner<span class="blink">_</span></a>
+    <div class="nav-links">
+      <a href="index.html"><span data-lang="pt" class="show">~/home</span><span data-lang="en">~/home</span></a><a href="projects.html"><span data-lang="pt" class="show">~/projetos</span><span data-lang="en">~/projects</span></a><a href="about.html"><span data-lang="pt" class="show">~/sobre</span><span data-lang="en">~/about</span></a><a href="blog.html"><span data-lang="pt" class="show">~/blog</span><span data-lang="en">~/blog</span></a>
+      <div class="lang-toggle">
+        <button data-set="pt" class="active">PT</button>
+        <button data-set="en">EN</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<div class="wrap">
+  <div class="layout">
+    <main>
+<section>
+  <h2 class="page-title"><span data-lang="pt" class="show">Blog</span><span data-lang="en">Blog</span></h2>
+  <p class="page-intro"><span data-lang="pt" class="show">Notas tecnicas sobre seguranca, desenvolvimento e infraestrutura.</span><span data-lang="en">Technical notes on security, development and infrastructure.</span></p>
+
+  <article class="post">
+    <div class="date"><span data-lang="pt" class="show">2026 &#xB7; engenharia</span><span data-lang="en">2026 &#xB7; engineering</span></div>
+    <h3><span data-lang="pt" class="show">Por que escrevi um agente de monitoramento em Nim</span><span data-lang="en">Why I wrote a monitoring agent in Nim</span></h3>
+    <div data-lang="pt" class="show">
+      <p>Comecei a desenhar um agente de telemetria de hardware desses que ficam residentes na maquina coletando RAM, CPU, GPU, disco e inventario. A primeira pergunta que veio na cabeca foi a obvia: por que nao usar uma das dezenas de solucoes ja prontas?</p>
+      <p>A resposta saiu dos requisitos. O agente precisava ser <b>leve</b>, ou seja, rodar em maquinas modestas sem competir por recursos com a aplicacao monitorada. Tambem precisava ser <b>auto-suficiente</b>, sem runtime pesado pra instalar. E <b>flexivel</b> o bastante pra coletar dados de fontes muito diferentes, desde APIs do Windows ate utilitarios de terceiros instalados no host. Python ficou descartado pelo runtime. Go era opcao, so que eu queria algo ainda mais enxuto no binario final. Rust seria excelente, mas a curva de iteracao era mais lenta do que eu precisava pra esse projeto especifico. Nim apareceu como o ponto doce: sintaxe limpa (compila pra C nos bastidores), binarios estaticos compactos, FFI direto pra APIs nativas, e velocidade comparavel a C++.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">O que o agente coleta</h4>
+      <p>O escopo da coleta cobre o que importa pra inventario e diagnostico:</p>
+      <ul style="margin:6px 0 10px 22px;color:var(--ink-dim)">
+        <li>RAM total, uso por processo, paginacao e pressao de memoria.</li>
+        <li>CPU: modelo, nucleos, frequencia, temperatura, uso por core.</li>
+        <li>GPU: identificacao, VRAM, temperatura, drivers ativos.</li>
+        <li>Armazenamento: drives, SMART, saude, temperatura, espaco.</li>
+        <li>Inventario: placa-mae, BIOS, sistema operacional, software instalado.</li>
+      </ul>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Cadeia de fallbacks</h4>
+      <p>A parte mais interessante do projeto, e a que justifica boa parte do trabalho, e a cadeia de fallbacks. Nenhuma fonte unica cobre tudo de forma confiavel em maquinas variadas, entao a estrategia foi montar uma cascata em tres niveis.</p>
+      <p><b style="color:var(--ember)">Primeiro</b>, APIs nativas do sistema operacional. Windows API (WMI, Performance Counters, registry) porque sao gratuitas, ja estao ali e nao exigem dependencias externas.</p>
+      <p><b style="color:var(--ember)">Segundo</b>, utilitarios locais especializados quando presentes. CrystalDiskInfo pra saude de disco, LibreHardwareMonitor pra sensores que a API do SO nao expoe (temperaturas de chip, voltagens, sensores de placa-mae menos comuns). O agente detecta a presenca deles e parseia a saida, sem incorporar codigo de terceiros.</p>
+      <p><b style="color:var(--ember)">Terceiro</b>, degradacao graciosa. Quando nada esta disponivel pra uma metrica especifica, ela e marcada como indisponivel em vez de quebrar a coleta inteira. Um host sem GPU dedicada nao deve fazer o agente travar.</p>
+      <p>Esse desenho importa porque ambientes reais sao bagunca. Maquinas com BIOS travado, agentes de seguranca que bloqueiam WMI, hosts sem privilegios administrativos, drivers desatualizados. Cada degrau da cascata e uma chance de ainda extrair dado util onde uma abordagem monolitica ja teria desistido.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Pegada de recursos</h4>
+      <p>O binario final fica em um intervalo de poucos megabytes, sem dependencias de runtime instaladas. O uso de RAM em operacao normal e contido o suficiente pra rodar em paralelo a cargas de trabalho reais sem se fazer notar. Esse e exatamente o ponto de um agente de monitoramento: estar la sem atrapalhar.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Por que vale o esforco</h4>
+      <p>Construir o proprio agente em vez de adotar um pronto so faz sentido em alguns casos. Quando voce precisa de controle sobre a forma da coleta, por exemplo. Ou quando o ambiente alvo tem restricoes especificas. Ou ainda quando o codigo precisa ser mantido fechado. Nesses cenarios, a combinacao Nim com cascata de fallbacks rende um produto pequeno, robusto e independente. Esse tipo de projeto ensina muito sobre interoperabilidade entre sistemas, e o resultado final tem cara de coisa propria, nao de wrapper em cima de wrapper.</p>
+    </div>
+    <div data-lang="en">
+      <p>I started designing a hardware telemetry agent, the kind that stays resident on the machine collecting RAM, CPU, GPU, disk and inventory data. The obvious first question came up: why not use one of the dozens of off-the-shelf solutions?</p>
+      <p>The answer came from the requirements. The agent had to be <b>lightweight</b>, meaning it should run on modest hardware without competing for resources with the monitored application. It also had to be <b>self-contained</b>, with no heavy runtime to install. And <b>flexible</b> enough to pull data from very different sources, from Windows APIs all the way to third-party utilities installed on the host. Python was out because of the runtime. Go was an option, but I wanted something even leaner in the final binary. Rust would have been excellent, but the iteration curve was slower than I needed for this specific project. Nim hit the sweet spot: clean syntax (it compiles to C under the hood), compact static binaries, direct FFI to native APIs, and speed comparable to C++.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">What the agent collects</h4>
+      <p>The collection scope covers what matters for inventory and diagnostics:</p>
+      <ul style="margin:6px 0 10px 22px;color:var(--ink-dim)">
+        <li>RAM: total, per-process usage, paging and memory pressure.</li>
+        <li>CPU: model, cores, frequency, temperature, per-core usage.</li>
+        <li>GPU: identification, VRAM, temperature, active drivers.</li>
+        <li>Storage: drives, SMART, health, temperature, free space.</li>
+        <li>Inventory: motherboard, BIOS, OS, installed software.</li>
+      </ul>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Fallback chain</h4>
+      <p>The most interesting part of the project, and what justifies a lot of the work, is the fallback chain. No single source reliably covers everything across varied machines, so the strategy was to build a three-tier cascade.</p>
+      <p><b style="color:var(--ember)">First</b>, native OS APIs. Windows API (WMI, Performance Counters, registry) because they're free, already there, and don't require external dependencies.</p>
+      <p><b style="color:var(--ember)">Second</b>, specialized local utilities when present. CrystalDiskInfo for disk health, LibreHardwareMonitor for sensor data the OS API doesn't expose (chip temperatures, voltages, less common motherboard sensors). The agent detects their presence and parses their output, without bundling third-party code.</p>
+      <p><b style="color:var(--ember)">Third</b>, graceful degradation. When nothing is available for a specific metric, it gets marked as unavailable instead of breaking the whole collection. A host with no dedicated GPU shouldn't lock up the agent.</p>
+      <p>This design matters because real environments are messy. Machines with locked BIOS, security agents that block WMI, hosts without admin privileges, outdated drivers. Each step in the cascade is a chance to still extract useful data where a monolithic approach would have already given up.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Resource footprint</h4>
+      <p>The final binary sits in the low single-digit megabytes, with no runtime dependencies installed. RAM usage in normal operation stays low enough to run alongside real workloads without making itself noticed. That's exactly the point of a monitoring agent: being there without getting in the way.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Why it's worth the effort</h4>
+      <p>Writing your own agent instead of adopting a pre-built one only makes sense in a few cases. When you need control over the shape of collection, for instance. Or when the target environment has specific constraints. Or when the code needs to be kept closed. In those cases, the Nim plus fallback-cascade combo yields a small, robust, independent product. This kind of project teaches a lot about cross-system interoperability, and the final result feels like something of your own, not a wrapper on top of a wrapper.</p>
+    </div>
+  </article>
+
+  <article class="post"><div class="date"><span data-lang="pt" class="show">em breve</span><span data-lang="en">coming soon</span></div>
+    <h3><span data-lang="pt" class="show">Anatomia de um DoS por fluxo de reset de senha</span><span data-lang="en">Anatomy of a password-reset flow DoS</span></h3>
+    <p><span data-lang="pt" class="show">Em preparacao.</span><span data-lang="en">In preparation.</span></p></article>
+</section>
+</main>
+    
+<aside class="sidebar">
+  <div class="widget">
+    <div class="wt"><span><span data-lang="pt" class="show">&#x2620; visitantes</span><span data-lang="en">&#x2620; visitors</span></span><span>!!</span></div>
+    <div class="wb">
+      <div class="counter">
+        <span>0</span><span>0</span><span>1</span><span>3</span><span>3</span><span>7</span>
+      </div>
+      <p style="text-align:center"><span data-lang="pt" class="show">voce e raro por aqui</span><span data-lang="en">you are a rare one</span></p>
+    </div>
+  </div>
+  <div class="widget">
+    <div class="wt"><span>&#x266B; now playing</span></div>
+    <div class="wb">
+      <div class="nowplaying">
+        <span class="eq"><i></i><i></i><i></i><i></i></span>
+        <span>silencio.mp3</span>
+      </div>
+      <p style="margin-top:6px"><span data-lang="pt" class="show">[so o silencio agora]</span><span data-lang="en">[silence, for now]</span></p>
+    </div>
+  </div>
+  <div class="widget">
+    <div class="wt"><span>&#x2727; status</span></div>
+    <div class="wb">
+      <p><b style="color:#ff6a1f">mood:</b> <span data-lang="pt" class="show">compilando</span><span data-lang="en">compiling</span><br>
+      <b style="color:#ff6a1f">loc:</b> Camboriu/SC<br>
+      <b style="color:#ff6a1f"><span data-lang="pt" class="show">aberto a</span><span data-lang="en">open to</span>:</b> <span data-lang="pt" class="show">contratos remotos</span><span data-lang="en">remote contracts</span></p>
+    </div>
+  </div>
+  <div class="widget">
+    <div class="wt"><span>blinkies</span></div>
+    <div class="wb">
+      <div class="blinkies">
+        <span class="blinkie on">hack the planet</span>
+        <span class="blinkie">100% nim</span>
+        <span class="blinkie">linux user</span>
+        <span class="blinkie on">v for victory</span>
+        <span class="blinkie">no script kiddies</span>
+      </div>
+    </div>
+  </div>
+  <div class="widget">
+    <div class="wt"><span><span data-lang="pt" class="show">top amigos</span><span data-lang="en">top friends</span></span></div>
+    <div class="wb">
+      <div class="friends">
+        <div class="friend"><b>Nim</b>lang</div>
+        <div class="friend"><b>Burp</b>suite</div>
+        <div class="friend"><b>Zabbix</b>agent</div>
+        <div class="friend"><b>Tux</b>linux</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+  </div>
+</div>
+<footer>
+  <div class="wrap">
+    <span data-lang="pt" class="show">&#x2727; <span class="glitter">feito com html, css e cafeina</span> &#x2727; hospedado no github pages &#x2727; melhor visto em 1024x768 &#x2727;</span>
+    <span data-lang="en">&#x2727; <span class="glitter">built with html, css and caffeine</span> &#x2727; hosted on github pages &#x2727; best viewed in 1024x768 &#x2727;</span>
+  </div>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
