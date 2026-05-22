@@ -91,6 +91,81 @@
     </div>
   </article>
 
+  <article class="post">
+    <div class="date"><span data-lang="pt" class="show">2026 &#xB7; seguranca</span><span data-lang="en">2026 &#xB7; security</span></div>
+    <h3><span data-lang="pt" class="show">Anatomia de uma exposicao de diretorio</span><span data-lang="en">Anatomy of a directory exposure</span></h3>
+    <div data-lang="pt" class="show">
+      <p>Listagem de diretorio (directory listing, ou "open directory") e um dos bugs mais antigos da web. Configuracao errada de servidor permite que qualquer um navegue pela estrutura de pastas como se fosse o Explorer do Windows. Voce vai num caminho qualquer do dominio, sem saber o que tem ali, e o servidor te entrega uma lista de arquivos. As vezes os arquivos sao inocentes. As vezes nao. E em 2026, isso ainda acontece com mais frequencia do que deveria.</p>
+      <p>Quero falar de uma tecnica especifica pra encontrar esses diretorios sensiveis, porque o jeito tradicional (forca bruta com wordlist) e ruidoso, lento e cheio de falso positivo. Tem um caminho mais elegante: <b>observar os redirects que acontecem depois do login</b>.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Por que esse bug ainda existe</h4>
+      <p>A causa raiz quase sempre e uma das tres. Um, configuracao default do servidor web (Apache, nginx, IIS) que veio com listagem habilitada e ninguem desligou. Dois, um diretorio que foi criado pra hospedar algum recurso publico (uploads, relatorios, exports) e nunca recebeu o tratamento de seguranca que o resto da aplicacao tem. Tres, ambiente de desenvolvimento ou staging que vazou pra producao com configuracoes mais permissivas.</p>
+      <p>Em todos os casos, o problema nao e o servidor em si. E que alguem assumiu que ninguem ia procurar.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">A tecnica: redirects pos-login</h4>
+      <p>Quando voce faz login num sistema corporativo, o servidor frequentemente te redireciona pra algum caminho interno antes de chegar na pagina final. Esse caminho intermediario as vezes e a homepage da area logada, outras vezes e um endpoint de roteamento, e em alguns casos e um diretorio inteiro que serve de base pra navegacao da area autenticada.</p>
+      <p>O ponto chave: esse caminho aparece no historico de requisicoes do seu navegador (ou no Burp Suite, no DevTools, em qualquer proxy). Voce ve <code>/login</code>, depois <code>/auth/callback</code>, depois <code>/painel/inicio.html</code>. A pasta <code>/painel/</code> e o diretorio base da area logada. Bater nela diretamente, sem o <code>inicio.html</code>, e o teste obvio. Bater nas variantes (<code>/painel/relatorios/</code>, <code>/painel/uploads/</code>, <code>/painel/backup/</code>) e o passo seguinte.</p>
+      <p>Esse caminho normalmente nao aparece em wordlists genericas, porque e especifico daquela aplicacao. Mas o redirect te entrega o nome de mao beijada.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Outras superficies que entregam estrutura</h4>
+      <p>O redirect pos-login e o ponto mais rico, mas nao e o unico. Vale combinar com algumas outras fontes ao longo da analise.</p>
+      <ul style="margin:6px 0 10px 22px;color:var(--ink-dim)">
+        <li><b style="color:var(--ember)">robots.txt</b> as vezes lista caminhos que o dono nao quer indexados, ou seja, e mapa do tesouro pra quem procura.</li>
+        <li><b style="color:var(--ember)">sitemap.xml</b> com sorte enumera paginas internas que voce nao chegaria so navegando.</li>
+        <li><b style="color:var(--ember)">Source maps (.map)</b> de JavaScript de producao podem revelar a estrutura de pastas do projeto inteiro.</li>
+        <li><b style="color:var(--ember)">Comentarios HTML</b> deixados em paginas publicas (links comentados, caminhos de teste, TODOs com URL).</li>
+        <li><b style="color:var(--ember)">Headers HTTP</b> como <code>X-Powered-By</code>, <code>Server</code> e mensagens de erro que vazam paths absolutos.</li>
+        <li><b style="color:var(--ember)">Paginas de erro 404 customizadas</b> que mostram parte do path requisitado.</li>
+      </ul>
+      <p>Cada uma sozinha quase nunca da o bug. Combinadas com o redirect pos-login, formam o mapa.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">O que costuma estar la dentro</h4>
+      <p>Quando a listagem esta ativa, o conteudo varia muito. Em ambientes onde isso vira problema serio, e comum encontrar planilhas com dados internos da empresa (faturamento, clientes, listas de funcionarios), backups antigos de banco de dados, configuracoes (.env, credenciais hardcoded), logs com dados sensiveis no meio, ou arquivos temporarios que ninguem lembra de apagar. Em CVSS, isso geralmente bate em High (7+) quando o conteudo contem PII ou credenciais.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Mitigacao</h4>
+      <p>A correcao tecnica e trivial. Em Apache, <code>Options -Indexes</code> no diretorio. Em nginx, garantir que <code>autoindex</code> esteja em <code>off</code> (que e o padrao, mas vale checar). Em IIS, desabilitar "Directory Browsing" nas configuracoes do site.</p>
+      <p>A correcao organizacional e mais dificil, e e onde fica o trabalho de verdade. Adotar uma postura de deny-by-default na infraestrutura, separar com clareza ambientes de desenvolvimento e producao, e fazer scans periodicos pelo proprio perimetro sao praticas que custam pouco e cortam essa classe de bug na raiz.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Por que vale escrever sobre isso</h4>
+      <p>Esse tipo de bug nao tem charme. Ninguem escreve sobre exposicao de diretorio querendo virar destaque na DEF CON. Mas ele continua aparecendo em auditoria atras de auditoria, e e responsavel por uma fatia consideravel de vazamentos de dados em empresas que tem coisas mais sofisticadas pra se preocupar. Pesquisador que olha pro basico antes do exotico costuma achar mais bugs do que pesquisador que pula direto pra cadeia de exploit complexa. A maturidade em seguranca passa por levar a serio o que parece simples demais pra dar problema.</p>
+    </div>
+    <div data-lang="en">
+      <p>Directory listing (or "open directory") is one of the oldest bugs on the web. A server misconfiguration lets anyone browse the folder structure like Windows Explorer. You go to any path on the domain without knowing what's there, and the server hands you a file list. Sometimes the files are harmless. Sometimes they aren't. And in 2026, this still happens more often than it should.</p>
+      <p>I want to talk about a specific technique for finding sensitive directories, because the traditional approach (brute-force with wordlists) is noisy, slow, and full of false positives. There's a more elegant path: <b>observe the redirects that happen after login</b>.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Why this bug still exists</h4>
+      <p>The root cause is almost always one of three. One, default web server configuration (Apache, nginx, IIS) that shipped with listing enabled and nobody turned it off. Two, a directory created to host some public resource (uploads, reports, exports) that never got the security treatment the rest of the application has. Three, a development or staging environment that leaked into production with more permissive settings.</p>
+      <p>In every case, the problem isn't the server itself. It's that someone assumed nobody would look.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">The technique: post-login redirects</h4>
+      <p>When you log into a corporate system, the server often redirects you through some internal path before reaching the final page. That intermediate path is sometimes the landing page of the logged area, sometimes a routing endpoint, and in some cases an entire directory that serves as the base for navigation in the authenticated area.</p>
+      <p>The key point: that path shows up in your browser's request history (or in Burp Suite, DevTools, any proxy). You see <code>/login</code>, then <code>/auth/callback</code>, then <code>/dashboard/home.html</code>. The <code>/dashboard/</code> folder is the base directory of the logged area. Hitting it directly, without the <code>home.html</code>, is the obvious test. Hitting the variants (<code>/dashboard/reports/</code>, <code>/dashboard/uploads/</code>, <code>/dashboard/backup/</code>) is the next step.</p>
+      <p>That path usually doesn't appear in generic wordlists because it's specific to that application. But the redirect hands you the name on a silver platter.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Other surfaces that leak structure</h4>
+      <p>The post-login redirect is the richest source, but not the only one. It pays to combine it with a few other inputs throughout the analysis.</p>
+      <ul style="margin:6px 0 10px 22px;color:var(--ink-dim)">
+        <li><b style="color:var(--ember)">robots.txt</b> sometimes lists paths the owner doesn't want indexed, which is basically a treasure map for someone looking.</li>
+        <li><b style="color:var(--ember)">sitemap.xml</b> with luck enumerates internal pages you wouldn't reach by just browsing.</li>
+        <li><b style="color:var(--ember)">Source maps (.map)</b> for production JavaScript can reveal the project's entire folder structure.</li>
+        <li><b style="color:var(--ember)">HTML comments</b> left on public pages (commented-out links, test paths, TODOs with URLs).</li>
+        <li><b style="color:var(--ember)">HTTP headers</b> like <code>X-Powered-By</code>, <code>Server</code>, and error messages that leak absolute paths.</li>
+        <li><b style="color:var(--ember)">Custom 404 error pages</b> that echo back part of the requested path.</li>
+      </ul>
+      <p>Each one alone rarely gives you the bug. Combined with the post-login redirect, they form the map.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">What's usually in there</h4>
+      <p>When listing is active, content varies a lot. In environments where this becomes a serious issue, it's common to find spreadsheets with internal company data (revenue, customers, employee lists), old database backups, configurations (.env, hardcoded credentials), logs with sensitive data mixed in, or temporary files nobody remembers deleting. On CVSS, this usually scores High (7+) when the content contains PII or credentials.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Mitigation</h4>
+      <p>The technical fix is trivial. In Apache, <code>Options -Indexes</code> on the directory. In nginx, make sure <code>autoindex</code> is set to <code>off</code> (which is the default, but worth checking). In IIS, disable "Directory Browsing" in the site settings.</p>
+      <p>The organizational fix is harder, and that's where the real work lies. Adopting a deny-by-default posture across the infrastructure, separating development and production environments cleanly, and running periodic scans against your own perimeter are practices that cost little and cut this class of bug at the root.</p>
+
+      <h4 style="font-family:var(--black);color:#fff;font-size:20px;margin:14px 0 6px">Why it's worth writing about</h4>
+      <p>This kind of bug has no charm. Nobody writes about directory exposure hoping to land a DEF CON spotlight. But it keeps showing up in audit after audit, and it's responsible for a meaningful slice of data leaks at companies that have far more sophisticated things to worry about. A researcher who looks at the basics before the exotic tends to find more bugs than one who jumps straight to complex exploit chains. Maturity in security goes through taking seriously what looks too simple to cause trouble.</p>
+    </div>
+  </article>
+
   <article class="post"><div class="date"><span data-lang="pt" class="show">em breve</span><span data-lang="en">coming soon</span></div>
     <h3><span data-lang="pt" class="show">Anatomia de um DoS por fluxo de reset de senha</span><span data-lang="en">Anatomy of a password-reset flow DoS</span></h3>
     <p><span data-lang="pt" class="show">Em preparacao.</span><span data-lang="en">In preparation.</span></p></article>
